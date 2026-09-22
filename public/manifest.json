@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Terrarium",
+  "description": "Grow a private, local terrarium from the websites you visit.",
+  "version": "1.0.0",
+  "permissions": ["alarms", "storage", "tabs"],
+  "optional_permissions": ["history"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "background": {
+    "service_worker": "serviceWorker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Browser Terrarium",
+    "default_popup": "popup.html"
+  },
+  "options_page": "dashboard.html"
+}
