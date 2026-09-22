@@ -204,6 +204,39 @@ h1, h2 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
 .garden-content { position: absolute; inset: 0 0 58px; }
 .terrarium-stage { position: absolute; inset: 0; overflow: hidden; }
 .terrarium-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+.terrarium-canvas.is-interactive { cursor: grab; touch-action: none; }
+.terrarium-canvas.is-dragging { cursor: grabbing; }
+.camera-controls {
+  position: absolute;
+  z-index: 4;
+  right: 28px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 7px 6px 12px;
+  border: 1px solid rgba(211, 236, 221, .14);
+  border-radius: 13px;
+  color: #8fa097;
+  background: rgba(13, 23, 20, .72);
+  box-shadow: 0 9px 30px rgba(0, 0, 0, .2), inset 0 1px rgba(255, 255, 255, .025);
+  backdrop-filter: blur(14px);
+  font-size: 9px;
+  pointer-events: auto;
+}
+.camera-controls > div { display: flex; gap: 3px; }
+.camera-controls button {
+  min-width: 29px;
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid rgba(211, 236, 221, .12);
+  border-radius: 8px;
+  color: #b9c9be;
+  background: rgba(159, 196, 152, .07);
+  cursor: pointer;
+}
+.camera-controls button:hover { color: var(--ink); background: rgba(159, 196, 152, .15); }
+.camera-controls .camera-reset { min-width: 48px; font-size: 9px; }
 .plant-tooltip {
   position: fixed;
   z-index: 30;
@@ -365,6 +398,7 @@ h1, h2 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
   .garden-footer p { display: none; }
   .detail-panel, .settings-panel { top: 12px; right: 12px; bottom: 12px; width: calc(100% - 24px); }
   .plant-tooltip { display: none; }
+  .camera-controls { right: 14px; bottom: 14px; }
 }
 
 @media (max-width: 460px) {
@@ -380,6 +414,7 @@ h1, h2 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
   .garden-footer strong { font-size: 14px; }
   .garden-footer span { font-size: 7px; }
   .dialog-actions { flex-direction: column; }
+  .camera-controls > span { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

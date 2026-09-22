@@ -5,7 +5,15 @@ import type {
   TimelineFilter,
 } from '../../shared/models/types';
 import { formatDuration, relativeDate } from '../../shared/utils/date';
+import {
+  cameraGeometry,
+  clampTerrariumCamera,
+  DEFAULT_TERRARIUM_CAMERA,
+  projectLayoutForCamera,
+  type TerrariumCamera,
+} from '../terrarium/camera';
 import { drawTerrarium } from '../terrarium/draw';
+import { getTerrariumGeometry } from '../terrarium/geometry';
 import { computeLayout, type LayoutPlant } from '../terrarium/layout';
 
 interface Props {
@@ -21,6 +29,13 @@ interface Props {
 interface Size {
   width: number;
   height: number;
+}
+
+interface DragState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startCamera: TerrariumCamera;
 }
 
 function nearestPlant(
@@ -55,10 +70,14 @@ export function TerrariumCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
   const openedAtRef = useRef(performance.now());
+  const dragRef = useRef<DragState | null>(null);
+  const suppressClickRef = useRef(false);
   const [size, setSize] = useState<Size>({ width: 900, height: 620 });
   const [hovered, setHovered] = useState<LayoutPlant | null>(null);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [keyboardIndex, setKeyboardIndex] = useState(-1);
+  const [camera, setCamera] = useState<TerrariumCamera>(DEFAULT_TERRARIUM_CAMERA);
+  const [dragging, setDragging] = useState(false);
   const reducedMotion = useMemo(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     [],
@@ -66,6 +85,25 @@ export function TerrariumCanvas({
   const layouts = useMemo(
     () => computeLayout(sites, size.width, size.height, Date.now(), settings.terrariumView),
     [settings.terrariumView, sites, size.width, size.height],
+  );
+  const baseGeometry = useMemo(
+    () => getTerrariumGeometry(size.width, size.height, settings.terrariumView),
+    [settings.terrariumView, size.height, size.width],
+  );
+  const activeCamera = settings.terrariumView === 'perspective' ? camera : DEFAULT_TERRARIUM_CAMERA;
+  const worldGeometry = useMemo(
+    () =>
+      settings.terrariumView === 'perspective'
+        ? cameraGeometry(size.width, baseGeometry, activeCamera)
+        : baseGeometry,
+    [activeCamera, baseGeometry, settings.terrariumView, size.width],
+  );
+  const displayLayouts = useMemo(
+    () =>
+      settings.terrariumView === 'perspective'
+        ? projectLayoutForCamera(layouts, baseGeometry, worldGeometry, activeCamera)
+        : layouts,
+    [activeCamera, baseGeometry, layouts, settings.terrariumView, worldGeometry],
   );
   const hoveredId = hovered?.site.id ?? highlightedId;
   const growingSet = useMemo(() => new Set(growingIds), [growingIds]);
@@ -86,6 +124,18 @@ export function TerrariumCanvas({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas || settings.terrariumView !== 'perspective') return;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const factor = Math.exp(-event.deltaY * 0.0012);
+      setCamera((current) => clampTerrariumCamera({ ...current, zoom: current.zoom * factor }));
+    };
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [settings.terrariumView]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -99,7 +149,7 @@ export function TerrariumCanvas({
     const animate = (time: number) => {
       if (time - lastDrawAt >= 32) {
         lastDrawAt = time;
-        drawTerrarium(context, layouts, {
+        drawTerrarium(context, displayLayouts, {
           width: size.width,
           height: size.height,
           time,
@@ -112,6 +162,7 @@ export function TerrariumCanvas({
           leafLimit: sites.length > 1_000 ? 5 : sites.length > 500 ? 8 : 18,
           growingIds: growingSet,
           growthProgress: Math.min(1, (time - openedAtRef.current) / 1_200),
+          worldGeometry,
         });
       }
       const growthAnimationActive =
@@ -125,7 +176,7 @@ export function TerrariumCanvas({
     return () => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
-  }, [filter, growingSet, hoveredId, layouts, reducedMotion, selectedId, settings, sites.length, size]);
+  }, [displayLayouts, filter, growingSet, hoveredId, reducedMotion, selectedId, settings, sites.length, size, worldGeometry]);
 
   const canvasPoint = (
     event: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>,
@@ -138,46 +189,146 @@ export function TerrariumCanvas({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
-    if (!layouts.length) return;
+    if (settings.terrariumView === 'perspective') {
+      if (event.shiftKey && event.key.startsWith('Arrow')) {
+        event.preventDefault();
+        setCamera((current) =>
+          clampTerrariumCamera({
+            ...current,
+            yaw:
+              current.yaw +
+              (event.key === 'ArrowRight' ? 0.1 : event.key === 'ArrowLeft' ? -0.1 : 0),
+            pitch:
+              current.pitch +
+              (event.key === 'ArrowDown' ? 0.08 : event.key === 'ArrowUp' ? -0.08 : 0),
+          }),
+        );
+        return;
+      }
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        setCamera((current) => clampTerrariumCamera({ ...current, zoom: current.zoom * 1.12 }));
+        return;
+      }
+      if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        setCamera((current) => clampTerrariumCamera({ ...current, zoom: current.zoom / 1.12 }));
+        return;
+      }
+      if (event.key.toLowerCase() === 'r' || event.key === 'Home') {
+        event.preventDefault();
+        setCamera(DEFAULT_TERRARIUM_CAMERA);
+        return;
+      }
+    }
+    if (!displayLayouts.length) return;
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault();
-      const next = (keyboardIndex + 1 + layouts.length) % layouts.length;
+      const next = (keyboardIndex + 1 + displayLayouts.length) % displayLayouts.length;
       setKeyboardIndex(next);
-      setHovered(layouts[next]);
+      setHovered(displayLayouts[next]);
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
-      const next = (keyboardIndex - 1 + layouts.length) % layouts.length;
+      const next = (keyboardIndex - 1 + displayLayouts.length) % displayLayouts.length;
       setKeyboardIndex(next);
-      setHovered(layouts[next]);
+      setHovered(displayLayouts[next]);
     } else if (event.key === 'Enter' && keyboardIndex >= 0) {
       event.preventDefault();
-      onSelect(layouts[keyboardIndex].site);
+      onSelect(displayLayouts[keyboardIndex].site);
     } else if (event.key === 'Escape') {
       setHovered(null);
       onSelect(null);
     }
   };
 
+  const changeZoom = (factor: number) => {
+    setCamera((current) => clampTerrariumCamera({ ...current, zoom: current.zoom * factor }));
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragRef.current = null;
+    setDragging(false);
+  };
+
   return (
     <div className="terrarium-stage">
       <canvas
         ref={canvasRef}
-        className="terrarium-canvas"
+        className={`terrarium-canvas${settings.terrariumView === 'perspective' ? ' is-interactive' : ''}${dragging ? ' is-dragging' : ''}`}
         tabIndex={0}
         role="application"
-        aria-label={`${sites.length} plant terrarium${hovered ? `. Focused plant: ${hovered.site.hostname}, ${hovered.plant.species.name}.` : '.'} Use arrow keys to explore plants and Enter to select.`}
+        aria-label={`${sites.length} plant terrarium${hovered ? `. Focused plant: ${hovered.site.hostname}, ${hovered.plant.species.name}.` : '.'} ${settings.terrariumView === 'perspective' ? 'Drag or use Shift plus arrow keys to orbit, scroll or use plus and minus to zoom, and press R to reset. ' : ''}Use arrow keys to explore plants and Enter to select.`}
         onKeyDown={handleKeyDown}
+        onPointerDown={(event) => {
+          if (settings.terrariumView !== 'perspective' || event.button !== 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          dragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startCamera: camera,
+          };
+          suppressClickRef.current = false;
+          setDragging(true);
+          setHovered(null);
+        }}
         onPointerMove={(event) => {
+          const drag = dragRef.current;
+          if (drag && drag.pointerId === event.pointerId) {
+            const deltaX = event.clientX - drag.startX;
+            const deltaY = event.clientY - drag.startY;
+            if (Math.hypot(deltaX, deltaY) > 4) suppressClickRef.current = true;
+            setCamera(
+              clampTerrariumCamera({
+                ...drag.startCamera,
+                yaw: drag.startCamera.yaw + (deltaX / Math.max(320, size.width)) * 1.9,
+                pitch: drag.startCamera.pitch + (deltaY / Math.max(430, size.height)) * 1.5,
+              }),
+            );
+            return;
+          }
           const point = canvasPoint(event);
           setPointer({ x: event.clientX, y: event.clientY });
-          setHovered(nearestPlant(layouts, point.x, point.y));
+          setHovered(nearestPlant(displayLayouts, point.x, point.y));
         }}
-        onPointerLeave={() => setHovered(null)}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onPointerLeave={() => {
+          if (!dragRef.current) setHovered(null);
+        }}
+        onDoubleClick={() => {
+          if (settings.terrariumView === 'perspective') setCamera(DEFAULT_TERRARIUM_CAMERA);
+        }}
         onClick={(event) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
           const point = canvasPoint(event);
-          onSelect(nearestPlant(layouts, point.x, point.y)?.site ?? null);
+          onSelect(nearestPlant(displayLayouts, point.x, point.y)?.site ?? null);
         }}
       />
+      {settings.terrariumView === 'perspective' && (
+        <div className="camera-controls" role="group" aria-label="3D terrarium camera">
+          <span>Drag to orbit · Scroll to zoom</span>
+          <div>
+            <button type="button" aria-label="Zoom out" onClick={() => changeZoom(1 / 1.12)}>−</button>
+            <button
+              type="button"
+              className="camera-reset"
+              onClick={() => setCamera(DEFAULT_TERRARIUM_CAMERA)}
+            >
+              Reset
+            </button>
+            <button type="button" aria-label="Zoom in" onClick={() => changeZoom(1.12)}>+</button>
+          </div>
+        </div>
+      )}
       {hovered && (
         <div
           className="plant-tooltip"

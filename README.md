@@ -94,7 +94,7 @@ Common presentation subdomains such as `www.` and `m.` are folded into the regis
 
 ## Available features
 
-- Full-page responsive glass terrarium with rooted soil placement, switchable 3D/2D views, and lightweight motion
+- Full-page responsive glass terrarium with rooted soil placement, switchable 3D/2D views, drag-to-orbit and zoom controls, and lightweight motion
 - A short, reduced-motion-aware unfurl animation for plants that changed between dashboard visits
 - Hover inspection, click details, keyboard plant navigation, and domain search
 - Today, 7-day, 30-day, and all-time emphasis filters

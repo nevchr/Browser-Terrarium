@@ -17,6 +17,7 @@ export interface DrawOptions {
   leafLimit: number;
   growingIds: ReadonlySet<string>;
   growthProgress: number;
+  worldGeometry: TerrariumGeometry;
 }
 
 function roundedRect(
@@ -221,7 +222,7 @@ function drawSoil(
 
 function drawBackdrop(context: CanvasRenderingContext2D, options: DrawOptions): void {
   const { width, height, settings } = options;
-  const geometry = getTerrariumGeometry(width, height, settings.terrariumView);
+  const glassGeometry = getTerrariumGeometry(width, height, settings.terrariumView);
   const month = new Date(options.now).getMonth();
   const seasonShift = settings.seasonalEffects
     ? month >= 8 && month <= 10
@@ -242,20 +243,30 @@ function drawBackdrop(context: CanvasRenderingContext2D, options: DrawOptions): 
   context.save();
   roundedRect(
     context,
-    geometry.glassX,
-    geometry.glassY,
-    geometry.glassWidth,
-    geometry.glassHeight,
-    geometry.glassRadius,
+    glassGeometry.glassX,
+    glassGeometry.glassY,
+    glassGeometry.glassWidth,
+    glassGeometry.glassHeight,
+    glassGeometry.glassRadius,
   );
   context.clip();
-  const pane = context.createLinearGradient(geometry.glassX, 0, geometry.glassX + geometry.glassWidth, height);
+  const pane = context.createLinearGradient(
+    glassGeometry.glassX,
+    0,
+    glassGeometry.glassX + glassGeometry.glassWidth,
+    height,
+  );
   pane.addColorStop(0, 'rgba(195, 231, 219, 0.045)');
   pane.addColorStop(0.36, 'rgba(127, 174, 158, 0.015)');
   pane.addColorStop(0.72, 'rgba(209, 239, 226, 0.035)');
   pane.addColorStop(1, 'rgba(61, 98, 87, 0.018)');
   context.fillStyle = pane;
-  context.fillRect(geometry.glassX, geometry.glassY, geometry.glassWidth, geometry.glassHeight);
+  context.fillRect(
+    glassGeometry.glassX,
+    glassGeometry.glassY,
+    glassGeometry.glassWidth,
+    glassGeometry.glassHeight,
+  );
 
   const glow = context.createRadialGradient(width * 0.52, height * 0.2, 0, width * 0.52, height * 0.2, width * 0.52);
   glow.addColorStop(0, 'rgba(209, 235, 188, 0.12)');
@@ -263,18 +274,18 @@ function drawBackdrop(context: CanvasRenderingContext2D, options: DrawOptions): 
   context.fillStyle = glow;
   context.fillRect(0, 0, width, height);
   drawAmbientAir(context, options);
-  drawSoil(context, options, geometry);
+  drawSoil(context, options, options.worldGeometry);
   context.restore();
 
   context.strokeStyle = 'rgba(194, 230, 218, 0.15)';
   context.lineWidth = 1;
   roundedRect(
     context,
-    geometry.glassX + 4,
-    geometry.glassY + 4,
-    geometry.glassWidth - 8,
-    geometry.glassHeight - 8,
-    Math.max(8, geometry.glassRadius - 4),
+    glassGeometry.glassX + 4,
+    glassGeometry.glassY + 4,
+    glassGeometry.glassWidth - 8,
+    glassGeometry.glassHeight - 8,
+    Math.max(8, glassGeometry.glassRadius - 4),
   );
   context.stroke();
 }
@@ -505,6 +516,18 @@ export function drawTerrarium(
 ): void {
   context.clearRect(0, 0, options.width, options.height);
   drawBackdrop(context, options);
+  const glass = getTerrariumGeometry(options.width, options.height, options.settings.terrariumView);
+  context.save();
+  roundedRect(
+    context,
+    glass.glassX,
+    glass.glassY,
+    glass.glassWidth,
+    glass.glassHeight,
+    glass.glassRadius,
+  );
+  context.clip();
   for (const plant of plants) drawPlant(context, plant, options);
+  context.restore();
   drawGlassForeground(context, options);
 }
