@@ -31,6 +31,7 @@ let activeSession: ActiveSession | null = null;
 let browserWindowFocused = false;
 let focusedWindowId: number | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
+let historyListenerRegistered = false;
 
 function enqueueWrite(task: () => Promise<void>): Promise<void> {
   writeQueue = writeQueue.then(task, task);
@@ -140,6 +141,25 @@ async function startFromCurrentTab(): Promise<void> {
   await beginTimingTab(activeTab);
 }
 
+function handleHistoryVisit(item: chrome.history.HistoryItem): void {
+  void recordVisit(item.url, item.title, item.lastVisitTime ?? Date.now());
+}
+
+function registerHistoryListenerIfAvailable(): void {
+  const visitedEvent = chrome.history?.onVisited;
+  if (!visitedEvent || historyListenerRegistered) return;
+  visitedEvent.addListener(handleHistoryVisit);
+  historyListenerRegistered = true;
+}
+
+function forgetHistoryListener(): void {
+  const visitedEvent = chrome.history?.onVisited;
+  if (visitedEvent && historyListenerRegistered) {
+    visitedEvent.removeListener(handleHistoryVisit);
+  }
+  historyListenerRegistered = false;
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   void (async () => {
     const existing = await chrome.storage.local.get([
@@ -169,8 +189,16 @@ chrome.runtime.onStartup.addListener(() => {
   void startFromCurrentTab();
 });
 
-chrome.history.onVisited.addListener((item) => {
-  void recordVisit(item.url, item.title, item.lastVisitTime ?? Date.now());
+chrome.permissions.onAdded.addListener((permissions) => {
+  if (permissions.permissions?.includes('history')) {
+    registerHistoryListenerIfAvailable();
+  }
+});
+
+chrome.permissions.onRemoved.addListener((permissions) => {
+  if (permissions.permissions?.includes('history')) {
+    forgetHistoryListener();
+  }
 });
 
 chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
@@ -230,3 +258,4 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 });
 
 void startFromCurrentTab();
+registerHistoryListenerIfAvailable();
