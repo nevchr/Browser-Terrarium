@@ -197,10 +197,10 @@ export function TerrariumCanvas({
             ...current,
             yaw:
               current.yaw +
-              (event.key === 'ArrowRight' ? 0.1 : event.key === 'ArrowLeft' ? -0.1 : 0),
+              (event.key === 'ArrowRight' ? 0.06 : event.key === 'ArrowLeft' ? -0.06 : 0),
             pitch:
               current.pitch +
-              (event.key === 'ArrowDown' ? 0.08 : event.key === 'ArrowUp' ? -0.08 : 0),
+              (event.key === 'ArrowDown' ? 0.05 : event.key === 'ArrowUp' ? -0.05 : 0),
           }),
         );
         return;
@@ -286,8 +286,8 @@ export function TerrariumCanvas({
             setCamera(
               clampTerrariumCamera({
                 ...drag.startCamera,
-                yaw: drag.startCamera.yaw + (deltaX / Math.max(320, size.width)) * 1.9,
-                pitch: drag.startCamera.pitch + (deltaY / Math.max(430, size.height)) * 1.5,
+                yaw: drag.startCamera.yaw + (deltaX / Math.max(320, size.width)) * 0.72,
+                pitch: drag.startCamera.pitch + (deltaY / Math.max(430, size.height)) * 0.68,
               }),
             );
             return;
@@ -314,8 +314,12 @@ export function TerrariumCanvas({
         }}
       />
       {settings.terrariumView === 'perspective' && (
-        <div className="camera-controls" role="group" aria-label="3D terrarium camera">
-          <span>Drag to orbit · Scroll to zoom</span>
+        <div
+          className="camera-controls"
+          role="group"
+          aria-label="3D terrarium camera"
+          title="Drag the terrarium to orbit. Scroll to zoom."
+        >
           <div>
             <button type="button" aria-label="Zoom out" onClick={() => changeZoom(1 / 1.12)}>−</button>
             <button

@@ -43,13 +43,13 @@ export function getTerrariumGeometry(
 
   return {
     ...shared,
-    soilBackY: height * 0.52,
-    soilFrontY: height * 0.835,
-    soilBottomY: height * 0.91,
-    soilBackLeft: width * 0.105,
-    soilBackRight: width * 0.895,
-    soilFrontLeft: width * 0.055,
-    soilFrontRight: width * 0.945,
+    soilBackY: height * 0.62,
+    soilFrontY: height * 0.81,
+    soilBottomY: height * 0.895,
+    soilBackLeft: width * 0.135,
+    soilBackRight: width * 0.865,
+    soilFrontLeft: width * 0.07,
+    soilFrontRight: width * 0.93,
   };
 }
 

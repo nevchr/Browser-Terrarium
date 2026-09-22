@@ -53,6 +53,21 @@ describe('interactive terrarium camera', () => {
     );
   });
 
+  it('keeps extreme camera angles as a shallow bed instead of a wall of soil', () => {
+    const width = 1_600;
+    const height = 800;
+    const base = getTerrariumGeometry(width, height, 'perspective');
+    const view = cameraGeometry(width, base, {
+      yaw: CAMERA_LIMITS.yaw,
+      pitch: CAMERA_LIMITS.pitch,
+      zoom: CAMERA_LIMITS.maxZoom,
+    });
+
+    expect(view.soilBackY).toBeGreaterThan(height * 0.55);
+    expect(view.soilFrontY - view.soilBackY).toBeLessThan(height * 0.3);
+    expect(view.soilBottomY - view.soilFrontY).toBeLessThan(height * 0.15);
+  });
+
   it('keeps projected plant bases rooted inside the transformed soil surface', () => {
     const width = 1_300;
     const height = 760;

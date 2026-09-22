@@ -14,10 +14,10 @@ export const DEFAULT_TERRARIUM_CAMERA: TerrariumCamera = {
 };
 
 export const CAMERA_LIMITS = {
-  yaw: 0.72,
-  pitch: 0.55,
-  minZoom: 0.78,
-  maxZoom: 1.72,
+  yaw: 0.3,
+  pitch: 0.22,
+  minZoom: 0.9,
+  maxZoom: 1.28,
 } as const;
 
 export function clampTerrariumCamera(camera: TerrariumCamera): TerrariumCamera {
@@ -37,8 +37,8 @@ export function cameraGeometry(
   const centerX = width / 2;
   const surfaceCenterY = (base.soilBackY + base.soilFrontY) / 2;
   const surfaceDepth = base.soilFrontY - base.soilBackY;
-  const depthScale = 1 + view.pitch * 0.58;
-  const yawShift = view.yaw * width * 0.09 * view.zoom;
+  const depthScale = 1 + view.pitch * 0.5;
+  const yawShift = view.yaw * width * 0.075 * view.zoom;
 
   const zoomX = (value: number) => centerX + (value - centerX) * view.zoom;
   const zoomY = (value: number) => surfaceCenterY + (value - surfaceCenterY) * view.zoom;

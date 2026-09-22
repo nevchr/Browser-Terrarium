@@ -51,7 +51,12 @@ export function App() {
     if (!extensionApiAvailable) {
       const demoSites = generateDemoSites();
       const previewMode = new URLSearchParams(window.location.search).get('preview');
-      setSiteState(previewMode === 'single' ? demoSites.slice(0, 1) : demoSites);
+      const previewCount = previewMode === 'single' ? 1 : Number.parseInt(previewMode ?? '', 10);
+      setSiteState(
+        Number.isFinite(previewCount) && previewCount > 0
+          ? demoSites.slice(0, Math.min(previewCount, demoSites.length))
+          : demoSites,
+      );
       setSettingsState(DEFAULT_SETTINGS);
       setHistoryAllowed(true);
       setReady(true);

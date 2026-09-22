@@ -44,7 +44,9 @@ export function computeLayout(
 ): LayoutPlant[] {
   const geometry = getTerrariumGeometry(width, height, view);
   const countScale = Math.max(0.52, Math.min(1, 1.2 - sites.length / 2600));
-  const collisionDistance = Math.max(12, 27 * countScale);
+  const sparseScale =
+    sites.length <= 3 ? 1.62 : sites.length <= 8 ? 1.42 : sites.length <= 20 ? 1.2 : 1;
+  const collisionDistance = Math.max(12, 27 * countScale * Math.min(1.45, sparseScale));
   const grid = new Map<string, Array<{ x: number; y: number }>>();
 
   return [...sites]
@@ -53,10 +55,16 @@ export function computeLayout(
       const plant = generatePlantState(site, now);
       const [zoneX, zoneY] = ZONES[site.category];
       const xScatter = sites.length > 180 ? 0.42 : 0.25;
-      const normalizedX = Math.max(
+      const scatteredX = Math.max(
         0.02,
         Math.min(0.98, zoneX + (seededUnit(site.plantSeed, 31) - 0.5) * xScatter),
       );
+      const normalizedX =
+        sites.length <= 8
+          ? 0.22 +
+            ((index + 1) / (sites.length + 1)) * 0.56 +
+            (seededUnit(site.plantSeed, 35) - 0.5) * 0.055
+          : scatteredX;
       const baseDepth = Math.max(0, Math.min(1, (zoneY - 0.48) / 0.31));
       const depth =
         view === 'perspective'
@@ -134,7 +142,11 @@ export function computeLayout(
             )
           : 0.55;
       const depthScale = view === 'perspective' ? 0.72 + perspectiveDepth * 0.36 : 0.92;
-      const scale = countScale * depthScale * (0.84 + seededUnit(site.plantSeed, 34) * 0.28);
+      const scale =
+        countScale *
+        sparseScale *
+        depthScale *
+        (0.84 + seededUnit(site.plantSeed, 34) * 0.28);
 
       return {
         site,

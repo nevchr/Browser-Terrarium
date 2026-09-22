@@ -78,6 +78,55 @@ function drawMossMound(
   context.restore();
 }
 
+function drawDriftwood(
+  context: CanvasRenderingContext2D,
+  geometry: TerrariumGeometry,
+  width: number,
+): void {
+  const depth = 0.62;
+  const bounds = soilBoundsAtDepth(geometry, depth);
+  const span = bounds.right - bounds.left;
+  const startX = bounds.left + span * 0.62;
+  const endX = bounds.left + span * 0.78;
+  const y = geometry.soilBackY + (geometry.soilFrontY - geometry.soilBackY) * depth;
+  const scale = Math.max(0.72, Math.min(1.05, width / 1_300));
+
+  context.save();
+  context.lineCap = 'round';
+  context.strokeStyle = 'rgba(10, 13, 10, 0.27)';
+  context.lineWidth = 15 * scale;
+  context.beginPath();
+  context.moveTo(startX + 3, y + 7);
+  context.bezierCurveTo(startX + span * 0.04, y - 4, endX - span * 0.03, y + 9, endX + 4, y + 3);
+  context.stroke();
+
+  const wood = context.createLinearGradient(startX, y, endX, y);
+  wood.addColorStop(0, '#3a2b20');
+  wood.addColorStop(0.52, '#5a402a');
+  wood.addColorStop(1, '#33251c');
+  context.strokeStyle = wood;
+  context.lineWidth = 10 * scale;
+  context.beginPath();
+  context.moveTo(startX, y);
+  context.bezierCurveTo(startX + span * 0.04, y - 11, endX - span * 0.03, y + 5, endX, y - 1);
+  context.stroke();
+
+  context.strokeStyle = 'rgba(181, 139, 91, 0.26)';
+  context.lineWidth = 2 * scale;
+  context.beginPath();
+  context.moveTo(startX + 8, y - 2);
+  context.bezierCurveTo(startX + span * 0.05, y - 8, endX - span * 0.05, y + 1, endX - 5, y - 3);
+  context.stroke();
+
+  context.strokeStyle = '#45301f';
+  context.lineWidth = 5 * scale;
+  context.beginPath();
+  context.moveTo(endX - span * 0.04, y - 3);
+  context.lineTo(endX - span * 0.015, y - 22 * scale);
+  context.stroke();
+  context.restore();
+}
+
 function drawSoil(
   context: CanvasRenderingContext2D,
   options: DrawOptions,
@@ -98,37 +147,75 @@ function drawSoil(
   context.fill();
 
   const soilFace = context.createLinearGradient(0, geometry.soilFrontY, 0, geometry.soilBottomY);
-  soilFace.addColorStop(0, '#42382c');
-  soilFace.addColorStop(0.42, '#30291f');
-  soilFace.addColorStop(1, '#1c1a15');
+  soilFace.addColorStop(0, '#392f25');
+  soilFace.addColorStop(0.46, '#2b251d');
+  soilFace.addColorStop(1, '#171613');
   context.fillStyle = soilFace;
   context.beginPath();
-  context.moveTo(geometry.soilFrontLeft, geometry.soilFrontY);
-  context.lineTo(geometry.soilFrontRight, geometry.soilFrontY);
-  context.lineTo(geometry.soilFrontRight, geometry.soilBottomY);
-  context.lineTo(geometry.soilFrontLeft, geometry.soilBottomY);
+  context.moveTo(geometry.soilFrontLeft, geometry.soilFrontY - 3);
+  context.quadraticCurveTo(
+    (geometry.soilFrontLeft + geometry.soilFrontRight) / 2,
+    geometry.soilFrontY + height * 0.012,
+    geometry.soilFrontRight,
+    geometry.soilFrontY - 3,
+  );
+  context.lineTo(geometry.soilFrontRight, geometry.soilBottomY - 6);
+  context.quadraticCurveTo(
+    (geometry.soilFrontLeft + geometry.soilFrontRight) / 2,
+    geometry.soilBottomY + 2,
+    geometry.soilFrontLeft,
+    geometry.soilBottomY - 6,
+  );
   context.closePath();
   context.fill();
 
   if (perspective) {
     const topSoil = context.createLinearGradient(0, geometry.soilBackY, 0, geometry.soilFrontY);
-    topSoil.addColorStop(0, '#4a4d35');
-    topSoil.addColorStop(0.36, '#4c4932');
-    topSoil.addColorStop(1, '#383326');
+    topSoil.addColorStop(0, '#3d4632');
+    topSoil.addColorStop(0.42, '#3a3b29');
+    topSoil.addColorStop(1, '#2a261d');
     context.fillStyle = topSoil;
     context.beginPath();
-    context.moveTo(geometry.soilBackLeft, geometry.soilBackY);
-    context.lineTo(geometry.soilBackRight, geometry.soilBackY);
-    context.lineTo(geometry.soilFrontRight, geometry.soilFrontY);
-    context.lineTo(geometry.soilFrontLeft, geometry.soilFrontY);
+    context.moveTo(geometry.soilBackLeft, geometry.soilBackY + 5);
+    context.quadraticCurveTo(
+      (geometry.soilBackLeft + geometry.soilBackRight) / 2,
+      geometry.soilBackY - 4,
+      geometry.soilBackRight,
+      geometry.soilBackY + 5,
+    );
+    context.lineTo(geometry.soilFrontRight, geometry.soilFrontY - 3);
+    context.quadraticCurveTo(
+      (geometry.soilFrontLeft + geometry.soilFrontRight) / 2,
+      geometry.soilFrontY + height * 0.012,
+      geometry.soilFrontLeft,
+      geometry.soilFrontY - 3,
+    );
     context.closePath();
+    context.fill();
+
+    const mossGlow = context.createRadialGradient(
+      width * 0.5,
+      geometry.soilBackY,
+      0,
+      width * 0.5,
+      geometry.soilBackY,
+      width * 0.45,
+    );
+    mossGlow.addColorStop(0, 'rgba(112, 126, 75, 0.12)');
+    mossGlow.addColorStop(1, 'rgba(65, 72, 48, 0)');
+    context.fillStyle = mossGlow;
     context.fill();
 
     context.strokeStyle = 'rgba(196, 176, 126, 0.13)';
     context.lineWidth = 1;
     context.beginPath();
-    context.moveTo(geometry.soilBackLeft, geometry.soilBackY);
-    context.lineTo(geometry.soilBackRight, geometry.soilBackY);
+    context.moveTo(geometry.soilBackLeft, geometry.soilBackY + 5);
+    context.quadraticCurveTo(
+      (geometry.soilBackLeft + geometry.soilBackRight) / 2,
+      geometry.soilBackY - 4,
+      geometry.soilBackRight,
+      geometry.soilBackY + 5,
+    );
     context.stroke();
   } else {
     const surface = context.createLinearGradient(0, geometry.soilBackY - 8, 0, geometry.soilBackY + 12);
@@ -172,6 +259,8 @@ function drawSoil(
   }
   context.globalAlpha = 1;
 
+  if (perspective) drawDriftwood(context, geometry, width);
+
   for (let index = 0; index < (perspective ? 9 : 7); index += 1) {
     const seed = 9_100 + index * 337;
     const depth = perspective ? 0.12 + seededUnit(seed, 1) * 0.75 : 0;
@@ -182,7 +271,7 @@ function drawSoil(
     const y = perspective
       ? geometry.soilBackY + (geometry.soilFrontY - geometry.soilBackY) * depth
       : geometry.soilBackY - 2;
-    drawMossMound(context, x, y, perspective ? 0.55 + depth * 0.48 : 0.7, seed);
+    drawMossMound(context, x, y, perspective ? 0.82 + depth * 0.7 : 0.78, seed);
   }
 
   for (let index = 0; index < 8; index += 1) {
