@@ -1,6 +1,12 @@
-import type { PlantState, SiteCategory, SiteRecord } from '../../shared/models/types';
+import type {
+  PlantState,
+  SiteCategory,
+  SiteRecord,
+  TerrariumViewMode,
+} from '../../shared/models/types';
 import { seededUnit } from '../../shared/utils/hash';
 import { generatePlantState } from '../../shared/utils/plant';
+import { getTerrariumGeometry, soilBoundsAtDepth } from './geometry';
 
 export interface LayoutPlant {
   site: SiteRecord;
@@ -34,9 +40,9 @@ export function computeLayout(
   width: number,
   height: number,
   now = Date.now(),
+  view: TerrariumViewMode = 'perspective',
 ): LayoutPlant[] {
-  const floorTop = Math.max(150, height * 0.34);
-  const floorHeight = Math.max(150, height * 0.55);
+  const geometry = getTerrariumGeometry(width, height, view);
   const countScale = Math.max(0.52, Math.min(1, 1.2 - sites.length / 2600));
   const collisionDistance = Math.max(12, 27 * countScale);
   const grid = new Map<string, Array<{ x: number; y: number }>>();
@@ -46,14 +52,33 @@ export function computeLayout(
     .map((site, index) => {
       const plant = generatePlantState(site, now);
       const [zoneX, zoneY] = ZONES[site.category];
-      const baseX =
-        width * (zoneX + (seededUnit(site.plantSeed, 31) - 0.5) * (sites.length > 180 ? 0.42 : 0.27));
+      const xScatter = sites.length > 180 ? 0.42 : 0.25;
+      const normalizedX = Math.max(
+        0.02,
+        Math.min(0.98, zoneX + (seededUnit(site.plantSeed, 31) - 0.5) * xScatter),
+      );
+      const baseDepth = Math.max(0, Math.min(1, (zoneY - 0.48) / 0.31));
+      const depth =
+        view === 'perspective'
+          ? Math.max(
+              0.03,
+              Math.min(
+                0.97,
+                baseDepth +
+                  (seededUnit(site.plantSeed, 32) - 0.5) * (sites.length > 180 ? 0.5 : 0.26),
+              ),
+            )
+          : 0;
+      const initialBounds = soilBoundsAtDepth(geometry, depth);
+      const baseX = initialBounds.left + (initialBounds.right - initialBounds.left) * normalizedX;
       const baseY =
-        floorTop +
-        floorHeight *
-          (zoneY - 0.42 + (seededUnit(site.plantSeed, 32) - 0.5) * (sites.length > 180 ? 0.42 : 0.28));
-      let x = Math.max(width * 0.07, Math.min(width * 0.93, baseX));
-      let y = Math.max(floorTop, Math.min(height * 0.9, baseY));
+        view === 'perspective'
+          ? geometry.soilBackY +
+            8 +
+            (geometry.soilFrontY - geometry.soilBackY - 18) * depth
+          : geometry.soilBackY + 2;
+      let x = baseX;
+      let y = baseY;
 
       for (let attempt = 0; attempt < 30; attempt += 1) {
         const keyX = Math.floor(x / collisionDistance);
@@ -68,16 +93,48 @@ export function computeLayout(
           }
         }
         if (clear) break;
-        const angle = seededUnit(site.plantSeed, 33) * Math.PI * 2 + attempt * 2.399;
-        const radius = collisionDistance * (1 + Math.sqrt(attempt));
-        x = Math.max(width * 0.06, Math.min(width * 0.94, baseX + Math.cos(angle) * radius));
-        y = Math.max(floorTop, Math.min(height * 0.9, baseY + Math.sin(angle) * radius * 0.46));
+        if (view === 'flat') {
+          const step = Math.ceil((attempt + 1) / 2);
+          const direction = attempt % 2 === 0 ? -1 : 1;
+          x = Math.max(
+            geometry.soilBackLeft + 10,
+            Math.min(
+              geometry.soilBackRight - 10,
+              baseX + direction * step * collisionDistance * 0.92,
+            ),
+          );
+          y = baseY;
+        } else {
+          const angle = seededUnit(site.plantSeed, 33) * Math.PI * 2 + attempt * 2.399;
+          const radius = collisionDistance * (1 + Math.sqrt(attempt));
+          y = Math.max(
+            geometry.soilBackY + 7,
+            Math.min(geometry.soilFrontY - 10, baseY + Math.sin(angle) * radius * 0.46),
+          );
+          const candidateDepth =
+            (y - geometry.soilBackY) / (geometry.soilFrontY - geometry.soilBackY);
+          const bounds = soilBoundsAtDepth(geometry, candidateDepth);
+          x = Math.max(
+            bounds.left + 8,
+            Math.min(bounds.right - 8, baseX + Math.cos(angle) * radius),
+          );
+        }
       }
 
       const key = cellKey(x, y, collisionDistance);
       grid.set(key, [...(grid.get(key) ?? []), { x, y }]);
-      const depth = Math.max(0.62, Math.min(1.14, 0.63 + (y / height) * 0.55));
-      const scale = countScale * depth * (0.82 + seededUnit(site.plantSeed, 34) * 0.3);
+      const perspectiveDepth =
+        view === 'perspective'
+          ? Math.max(
+              0,
+              Math.min(
+                1,
+                (y - geometry.soilBackY) / (geometry.soilFrontY - geometry.soilBackY),
+              ),
+            )
+          : 0.55;
+      const depthScale = view === 'perspective' ? 0.72 + perspectiveDepth * 0.36 : 0.92;
+      const scale = countScale * depthScale * (0.84 + seededUnit(site.plantSeed, 34) * 0.28);
 
       return {
         site,
@@ -88,7 +145,11 @@ export function computeLayout(
         hitRadius: Math.max(12, (11 + plant.growthLevel * 13) * scale),
       };
     })
-    .sort((a, b) => a.y - b.y || a.site.plantSeed - b.site.plantSeed)
+    .sort((a, b) =>
+      view === 'perspective'
+        ? a.y - b.y || a.site.plantSeed - b.site.plantSeed
+        : a.x - b.x || a.site.plantSeed - b.site.plantSeed,
+    )
     .map((entry, index, entries) => ({
       ...entry,
       // A tiny deterministic depth stagger keeps exact ties from shimmering.

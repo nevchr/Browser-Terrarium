@@ -24,4 +24,20 @@ describe('terrarium data import', () => {
     expect(imported).not.toHaveProperty('execute');
     expect(imported.sites[0]).not.toHaveProperty('html');
   });
+
+  it('preserves a valid terrarium view and defaults legacy exports to perspective', () => {
+    const exported = makeExport(generateDemoSites(30, 1_800_000_000_000), {
+      ...DEFAULT_SETTINGS,
+      terrariumView: 'flat',
+    });
+    expect(validateImport(exported).settings.terrariumView).toBe('flat');
+
+    const legacy = {
+      ...exported,
+      settings: Object.fromEntries(
+        Object.entries(exported.settings).filter(([key]) => key !== 'terrariumView'),
+      ),
+    };
+    expect(validateImport(legacy).settings.terrariumView).toBe('perspective');
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeLayout } from '../src/dashboard/terrarium/layout';
+import { getTerrariumGeometry } from '../src/dashboard/terrarium/geometry';
 import type { SiteRecord } from '../src/shared/models/types';
 import { hashString } from '../src/shared/utils/hash';
 
@@ -42,6 +43,28 @@ describe('terrarium layout', () => {
       expect(entry.x).toBeLessThanOrEqual(1_400);
       expect(entry.y).toBeGreaterThanOrEqual(0);
       expect(entry.y).toBeLessThanOrEqual(800);
+    }
+  });
+
+  it('anchors every perspective plant inside the rectangular soil surface', () => {
+    const width = 1_400;
+    const height = 800;
+    const geometry = getTerrariumGeometry(width, height, 'perspective');
+    const layout = computeLayout(makeSites(120), width, height, NOW, 'perspective');
+    for (const entry of layout) {
+      expect(entry.y).toBeGreaterThanOrEqual(geometry.soilBackY);
+      expect(entry.y).toBeLessThanOrEqual(geometry.soilFrontY);
+    }
+  });
+
+  it('anchors 2D plants along the flat soil line', () => {
+    const width = 1_200;
+    const height = 700;
+    const geometry = getTerrariumGeometry(width, height, 'flat');
+    const layout = computeLayout(makeSites(80), width, height, NOW, 'flat');
+    for (const entry of layout) {
+      expect(entry.y).toBeGreaterThanOrEqual(geometry.soilBackY);
+      expect(entry.y).toBeLessThan(geometry.soilBackY + 3);
     }
   });
 });

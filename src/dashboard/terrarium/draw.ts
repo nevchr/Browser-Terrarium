@@ -1,6 +1,7 @@
 import type { TerrariumSettings, TimelineFilter } from '../../shared/models/types';
 import { cutoffForFilter } from '../../shared/utils/date';
 import { seededUnit } from '../../shared/utils/hash';
+import { getTerrariumGeometry, soilBoundsAtDepth, type TerrariumGeometry } from './geometry';
 import type { LayoutPlant } from './layout';
 
 export interface DrawOptions {
@@ -30,8 +31,197 @@ function roundedRect(
   context.roundRect(x, y, width, height, radius);
 }
 
-function drawBackdrop(context: CanvasRenderingContext2D, options: DrawOptions): void {
+function drawAmbientAir(context: CanvasRenderingContext2D, options: DrawOptions): void {
   const { width, height, time, settings, reducedMotion } = options;
+  if (!settings.ambientParticles) return;
+  for (let index = 0; index < 18; index += 1) {
+    const seed = index * 1_271;
+    const motion = reducedMotion ? 0 : time * (0.000018 + seededUnit(seed, 4) * 0.00002);
+    const x = width * 0.05 + ((seededUnit(seed, 5) + motion) % 1) * width * 0.9;
+    const baseY = height * (0.12 + seededUnit(seed, 6) * 0.46);
+    const y = baseY + Math.sin(time * 0.00035 + index) * 6;
+    context.fillStyle = `rgba(222, 240, 185, ${0.1 + seededUnit(seed, 7) * 0.2})`;
+    context.beginPath();
+    context.arc(x, y, 0.7 + seededUnit(seed, 8) * 1.35, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function drawMossMound(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  scale: number,
+  seed: number,
+): void {
+  context.save();
+  context.translate(x, y);
+  context.fillStyle = 'rgba(70, 91, 49, 0.88)';
+  context.beginPath();
+  context.ellipse(0, 1, 15 * scale, 5 * scale, 0, 0, Math.PI * 2);
+  context.fill();
+  for (let index = 0; index < 7; index += 1) {
+    const angle = seededUnit(seed, 210 + index) * Math.PI * 2;
+    const radius = seededUnit(seed, 220 + index) * 8 * scale;
+    context.fillStyle = index % 2 === 0 ? '#708b50' : '#566e3d';
+    context.beginPath();
+    context.arc(
+      Math.cos(angle) * radius,
+      -2 * scale + Math.sin(angle) * radius * 0.38,
+      (3.2 + seededUnit(seed, 230 + index) * 3.2) * scale,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+  }
+  context.restore();
+}
+
+function drawSoil(
+  context: CanvasRenderingContext2D,
+  options: DrawOptions,
+  geometry: TerrariumGeometry,
+): void {
+  const { width, height } = options;
+  const perspective = options.settings.terrariumView === 'perspective';
+
+  context.fillStyle = 'rgba(2, 7, 6, 0.42)';
+  roundedRect(
+    context,
+    geometry.soilFrontLeft + width * 0.008,
+    geometry.soilBottomY - height * 0.012,
+    geometry.soilFrontRight - geometry.soilFrontLeft - width * 0.016,
+    height * 0.045,
+    18,
+  );
+  context.fill();
+
+  const soilFace = context.createLinearGradient(0, geometry.soilFrontY, 0, geometry.soilBottomY);
+  soilFace.addColorStop(0, '#42382c');
+  soilFace.addColorStop(0.42, '#30291f');
+  soilFace.addColorStop(1, '#1c1a15');
+  context.fillStyle = soilFace;
+  context.beginPath();
+  context.moveTo(geometry.soilFrontLeft, geometry.soilFrontY);
+  context.lineTo(geometry.soilFrontRight, geometry.soilFrontY);
+  context.lineTo(geometry.soilFrontRight, geometry.soilBottomY);
+  context.lineTo(geometry.soilFrontLeft, geometry.soilBottomY);
+  context.closePath();
+  context.fill();
+
+  if (perspective) {
+    const topSoil = context.createLinearGradient(0, geometry.soilBackY, 0, geometry.soilFrontY);
+    topSoil.addColorStop(0, '#4a4d35');
+    topSoil.addColorStop(0.36, '#4c4932');
+    topSoil.addColorStop(1, '#383326');
+    context.fillStyle = topSoil;
+    context.beginPath();
+    context.moveTo(geometry.soilBackLeft, geometry.soilBackY);
+    context.lineTo(geometry.soilBackRight, geometry.soilBackY);
+    context.lineTo(geometry.soilFrontRight, geometry.soilFrontY);
+    context.lineTo(geometry.soilFrontLeft, geometry.soilFrontY);
+    context.closePath();
+    context.fill();
+
+    context.strokeStyle = 'rgba(196, 176, 126, 0.13)';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(geometry.soilBackLeft, geometry.soilBackY);
+    context.lineTo(geometry.soilBackRight, geometry.soilBackY);
+    context.stroke();
+  } else {
+    const surface = context.createLinearGradient(0, geometry.soilBackY - 8, 0, geometry.soilBackY + 12);
+    surface.addColorStop(0, '#596044');
+    surface.addColorStop(0.45, '#464331');
+    surface.addColorStop(1, '#322b22');
+    context.fillStyle = surface;
+    context.fillRect(
+      geometry.soilBackLeft,
+      geometry.soilBackY - 7,
+      geometry.soilBackRight - geometry.soilBackLeft,
+      15,
+    );
+  }
+
+  context.globalAlpha = 0.56;
+  for (let index = 0; index < 82; index += 1) {
+    const seed = index * 811;
+    const depth = seededUnit(seed, 1);
+    const bounds = perspective
+      ? soilBoundsAtDepth(geometry, depth)
+      : { left: geometry.soilFrontLeft, right: geometry.soilFrontRight };
+    const x = bounds.left + (bounds.right - bounds.left) * seededUnit(seed, 2);
+    const y = perspective
+      ? geometry.soilBackY + (geometry.soilFrontY - geometry.soilBackY) * depth
+      : geometry.soilFrontY +
+        10 +
+        seededUnit(seed, 3) * (geometry.soilBottomY - geometry.soilFrontY - 18);
+    context.fillStyle = index % 4 === 0 ? '#8e7954' : index % 3 === 0 ? '#675944' : '#82735a';
+    context.beginPath();
+    context.ellipse(
+      x,
+      y,
+      0.7 + seededUnit(seed, 4) * 2.2,
+      0.5 + seededUnit(seed, 5) * 1.1,
+      seededUnit(seed, 6) * Math.PI,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+  }
+  context.globalAlpha = 1;
+
+  for (let index = 0; index < (perspective ? 9 : 7); index += 1) {
+    const seed = 9_100 + index * 337;
+    const depth = perspective ? 0.12 + seededUnit(seed, 1) * 0.75 : 0;
+    const bounds = perspective
+      ? soilBoundsAtDepth(geometry, depth)
+      : { left: geometry.soilBackLeft, right: geometry.soilBackRight };
+    const x = bounds.left + (bounds.right - bounds.left) * seededUnit(seed, 2);
+    const y = perspective
+      ? geometry.soilBackY + (geometry.soilFrontY - geometry.soilBackY) * depth
+      : geometry.soilBackY - 2;
+    drawMossMound(context, x, y, perspective ? 0.55 + depth * 0.48 : 0.7, seed);
+  }
+
+  for (let index = 0; index < 8; index += 1) {
+    const seed = 13_000 + index * 191;
+    const depth = perspective ? 0.16 + seededUnit(seed, 1) * 0.72 : 0;
+    const bounds = perspective
+      ? soilBoundsAtDepth(geometry, depth)
+      : { left: geometry.soilBackLeft, right: geometry.soilBackRight };
+    const x = bounds.left + (bounds.right - bounds.left) * seededUnit(seed, 2);
+    const y = perspective
+      ? geometry.soilBackY + (geometry.soilFrontY - geometry.soilBackY) * depth
+      : geometry.soilBackY + 1;
+    const scale = perspective ? 0.55 + depth * 0.42 : 0.72;
+    context.fillStyle = index % 2 === 0 ? '#858376' : '#6f7366';
+    context.beginPath();
+    context.ellipse(x, y, (4 + seededUnit(seed, 3) * 6) * scale, 3.2 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  context.strokeStyle = 'rgba(168, 135, 87, 0.13)';
+  context.lineWidth = 1;
+  for (let index = 0; index < 5; index += 1) {
+    const y = geometry.soilFrontY + 17 + index * ((geometry.soilBottomY - geometry.soilFrontY - 28) / 5);
+    context.beginPath();
+    context.moveTo(geometry.soilFrontLeft + width * (0.06 + index * 0.035), y);
+    context.bezierCurveTo(
+      width * 0.36,
+      y + (index % 2 === 0 ? 5 : -4),
+      width * 0.64,
+      y + (index % 2 === 0 ? -3 : 5),
+      geometry.soilFrontRight - width * (0.08 + index * 0.02),
+      y,
+    );
+    context.stroke();
+  }
+}
+
+function drawBackdrop(context: CanvasRenderingContext2D, options: DrawOptions): void {
+  const { width, height, settings } = options;
+  const geometry = getTerrariumGeometry(width, height, settings.terrariumView);
   const month = new Date(options.now).getMonth();
   const seasonShift = settings.seasonalEffects
     ? month >= 8 && month <= 10
@@ -45,66 +235,122 @@ function drawBackdrop(context: CanvasRenderingContext2D, options: DrawOptions): 
   const sky = context.createLinearGradient(0, 0, 0, height);
   sky.addColorStop(0, `hsl(${191 + seasonShift} 19% 15%)`);
   sky.addColorStop(0.58, `hsl(${177 + seasonShift} 20% 12%)`);
-  sky.addColorStop(1, '#111a18');
+  sky.addColorStop(1, '#101816');
   context.fillStyle = sky;
   context.fillRect(0, 0, width, height);
 
-  const glow = context.createRadialGradient(width * 0.5, height * 0.2, 0, width * 0.5, height * 0.2, width * 0.55);
-  glow.addColorStop(0, 'rgba(209, 235, 188, 0.13)');
+  context.save();
+  roundedRect(
+    context,
+    geometry.glassX,
+    geometry.glassY,
+    geometry.glassWidth,
+    geometry.glassHeight,
+    geometry.glassRadius,
+  );
+  context.clip();
+  const pane = context.createLinearGradient(geometry.glassX, 0, geometry.glassX + geometry.glassWidth, height);
+  pane.addColorStop(0, 'rgba(195, 231, 219, 0.045)');
+  pane.addColorStop(0.36, 'rgba(127, 174, 158, 0.015)');
+  pane.addColorStop(0.72, 'rgba(209, 239, 226, 0.035)');
+  pane.addColorStop(1, 'rgba(61, 98, 87, 0.018)');
+  context.fillStyle = pane;
+  context.fillRect(geometry.glassX, geometry.glassY, geometry.glassWidth, geometry.glassHeight);
+
+  const glow = context.createRadialGradient(width * 0.52, height * 0.2, 0, width * 0.52, height * 0.2, width * 0.52);
+  glow.addColorStop(0, 'rgba(209, 235, 188, 0.12)');
   glow.addColorStop(1, 'rgba(209, 235, 188, 0)');
   context.fillStyle = glow;
   context.fillRect(0, 0, width, height);
+  drawAmbientAir(context, options);
+  drawSoil(context, options, geometry);
+  context.restore();
 
-  // The garden bed is drawn as a layered ellipse for a tactile diorama effect.
-  context.fillStyle = 'rgba(9, 14, 13, 0.58)';
-  context.beginPath();
-  context.ellipse(width / 2, height * 0.79, width * 0.43, height * 0.17, 0, 0, Math.PI * 2);
-  context.fill();
-  const soil = context.createRadialGradient(width / 2, height * 0.63, 20, width / 2, height * 0.7, width * 0.5);
-  soil.addColorStop(0, '#59654a');
-  soil.addColorStop(0.42, '#3e4937');
-  soil.addColorStop(1, '#202c26');
-  context.fillStyle = soil;
-  context.beginPath();
-  context.ellipse(width / 2, height * 0.7, width * 0.44, height * 0.22, 0, 0, Math.PI * 2);
-  context.fill();
-
-  context.globalAlpha = 0.46;
-  for (let index = 0; index < 34; index += 1) {
-    const seed = index * 811;
-    const angle = seededUnit(seed, 1) * Math.PI * 2;
-    const radius = Math.sqrt(seededUnit(seed, 2));
-    const x = width / 2 + Math.cos(angle) * width * 0.4 * radius;
-    const y = height * 0.7 + Math.sin(angle) * height * 0.19 * radius;
-    context.fillStyle = index % 3 === 0 ? '#8b8861' : '#7c9365';
-    context.beginPath();
-    context.ellipse(x, y, 1.2 + (index % 4), 0.7 + (index % 3), angle, 0, Math.PI * 2);
-    context.fill();
-  }
-  context.globalAlpha = 1;
-
-  if (settings.ambientParticles) {
-    for (let index = 0; index < 18; index += 1) {
-      const seed = index * 1_271;
-      const motion = reducedMotion ? 0 : time * (0.000018 + seededUnit(seed, 4) * 0.00002);
-      const x = ((seededUnit(seed, 5) + motion) % 1) * width;
-      const baseY = height * (0.12 + seededUnit(seed, 6) * 0.58);
-      const y = baseY + Math.sin(time * 0.00035 + index) * 6;
-      context.fillStyle = `rgba(222, 240, 185, ${0.12 + seededUnit(seed, 7) * 0.25})`;
-      context.beginPath();
-      context.arc(x, y, 0.7 + seededUnit(seed, 8) * 1.5, 0, Math.PI * 2);
-      context.fill();
-    }
-  }
-
-  context.strokeStyle = 'rgba(206, 236, 224, 0.28)';
-  context.lineWidth = 1.25;
-  roundedRect(context, width * 0.035, height * 0.035, width * 0.93, height * 0.91, Math.min(42, width * 0.04));
+  context.strokeStyle = 'rgba(194, 230, 218, 0.15)';
+  context.lineWidth = 1;
+  roundedRect(
+    context,
+    geometry.glassX + 4,
+    geometry.glassY + 4,
+    geometry.glassWidth - 8,
+    geometry.glassHeight - 8,
+    Math.max(8, geometry.glassRadius - 4),
+  );
   context.stroke();
-  context.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+}
+
+function drawGlassForeground(context: CanvasRenderingContext2D, options: DrawOptions): void {
+  const { width, height, settings } = options;
+  const geometry = getTerrariumGeometry(width, height, settings.terrariumView);
+
+  context.save();
+  roundedRect(
+    context,
+    geometry.glassX,
+    geometry.glassY,
+    geometry.glassWidth,
+    geometry.glassHeight,
+    geometry.glassRadius,
+  );
+  context.clip();
+
+  const sheen = context.createLinearGradient(geometry.glassX, 0, geometry.glassX + geometry.glassWidth, 0);
+  sheen.addColorStop(0, 'rgba(227, 250, 242, 0.1)');
+  sheen.addColorStop(0.08, 'rgba(227, 250, 242, 0.015)');
+  sheen.addColorStop(0.42, 'rgba(227, 250, 242, 0)');
+  sheen.addColorStop(0.78, 'rgba(227, 250, 242, 0.025)');
+  sheen.addColorStop(1, 'rgba(227, 250, 242, 0.08)');
+  context.fillStyle = sheen;
+  context.fillRect(geometry.glassX, geometry.glassY, geometry.glassWidth, geometry.glassHeight);
+
+  context.save();
+  context.translate(width * 0.21, height * 0.08);
+  context.rotate(-0.13);
+  const reflection = context.createLinearGradient(0, 0, width * 0.22, 0);
+  reflection.addColorStop(0, 'rgba(235, 255, 248, 0)');
+  reflection.addColorStop(0.45, 'rgba(235, 255, 248, 0.045)');
+  reflection.addColorStop(0.55, 'rgba(235, 255, 248, 0.02)');
+  reflection.addColorStop(1, 'rgba(235, 255, 248, 0)');
+  context.fillStyle = reflection;
+  context.fillRect(0, 0, width * 0.18, height * 0.78);
+  context.restore();
+  context.restore();
+
+  context.strokeStyle = 'rgba(210, 240, 229, 0.33)';
+  context.lineWidth = 1.25;
+  roundedRect(
+    context,
+    geometry.glassX,
+    geometry.glassY,
+    geometry.glassWidth,
+    geometry.glassHeight,
+    geometry.glassRadius,
+  );
+  context.stroke();
+
+  context.strokeStyle = 'rgba(244, 255, 251, 0.09)';
+  context.lineWidth = 1;
   context.beginPath();
-  context.moveTo(width * 0.095, height * 0.08);
-  context.bezierCurveTo(width * 0.05, height * 0.32, width * 0.08, height * 0.62, width * 0.12, height * 0.79);
+  context.moveTo(geometry.glassX + width * 0.025, geometry.glassY + geometry.glassRadius);
+  context.lineTo(geometry.glassX + width * 0.025, geometry.glassY + geometry.glassHeight - geometry.glassRadius);
+  context.moveTo(geometry.glassX + geometry.glassWidth - width * 0.02, geometry.glassY + geometry.glassRadius);
+  context.lineTo(
+    geometry.glassX + geometry.glassWidth - width * 0.02,
+    geometry.glassY + geometry.glassHeight - geometry.glassRadius,
+  );
+  context.stroke();
+
+  const baseRim = context.createLinearGradient(0, geometry.soilBottomY, 0, geometry.soilBottomY + 12);
+  baseRim.addColorStop(0, 'rgba(218, 245, 235, 0.24)');
+  baseRim.addColorStop(1, 'rgba(218, 245, 235, 0.02)');
+  context.strokeStyle = baseRim;
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(geometry.glassX + geometry.glassRadius * 0.7, geometry.soilBottomY + 2);
+  context.lineTo(
+    geometry.glassX + geometry.glassWidth - geometry.glassRadius * 0.7,
+    geometry.soilBottomY + 2,
+  );
   context.stroke();
 }
 
@@ -260,4 +506,5 @@ export function drawTerrarium(
   context.clearRect(0, 0, options.width, options.height);
   drawBackdrop(context, options);
   for (const plant of plants) drawPlant(context, plant, options);
+  drawGlassForeground(context, options);
 }

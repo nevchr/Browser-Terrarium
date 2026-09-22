@@ -196,12 +196,26 @@ export function validateImport(value: unknown): TerrariumExport {
   });
 
   const incomingSettings = isObject(value.settings) ? value.settings : {};
-  const settings = Object.fromEntries(
-    Object.entries(DEFAULT_SETTINGS).map(([key, defaultValue]) => [
-      key,
-      typeof incomingSettings[key] === 'boolean' ? incomingSettings[key] : defaultValue,
-    ]),
-  ) as unknown as TerrariumSettings;
+  const settings: TerrariumSettings = { ...DEFAULT_SETTINGS };
+  const booleanKeys = [
+    'trackActiveTime',
+    'trackNewSites',
+    'plantMotion',
+    'ambientParticles',
+    'seasonalEffects',
+    'storePageTitles',
+  ] as const;
+  for (const key of booleanKeys) {
+    if (typeof incomingSettings[key] === 'boolean') {
+      settings[key] = incomingSettings[key];
+    }
+  }
+  if (
+    incomingSettings.terrariumView === 'perspective' ||
+    incomingSettings.terrariumView === 'flat'
+  ) {
+    settings.terrariumView = incomingSettings.terrariumView;
+  }
 
   return {
     version: 1,

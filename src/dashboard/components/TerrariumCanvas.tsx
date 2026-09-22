@@ -64,8 +64,8 @@ export function TerrariumCanvas({
     [],
   );
   const layouts = useMemo(
-    () => computeLayout(sites, size.width, size.height),
-    [sites, size.width, size.height],
+    () => computeLayout(sites, size.width, size.height, Date.now(), settings.terrariumView),
+    [settings.terrariumView, sites, size.width, size.height],
   );
   const hoveredId = hovered?.site.id ?? highlightedId;
   const growingSet = useMemo(() => new Set(growingIds), [growingIds]);

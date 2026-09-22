@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: TerrariumSettings = {
   ambientParticles: true,
   seasonalEffects: true,
   storePageTitles: false,
+  terrariumView: 'perspective',
 };
 
 export const DEFAULT_META: AppMeta = {

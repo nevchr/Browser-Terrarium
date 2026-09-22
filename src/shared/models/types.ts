@@ -60,6 +60,8 @@ export interface PlantState {
   dormant: boolean;
 }
 
+export type TerrariumViewMode = 'perspective' | 'flat';
+
 export interface TerrariumSettings {
   trackActiveTime: boolean;
   trackNewSites: boolean;
@@ -67,6 +69,7 @@ export interface TerrariumSettings {
   ambientParticles: boolean;
   seasonalEffects: boolean;
   storePageTitles: boolean;
+  terrariumView: TerrariumViewMode;
 }
 
 export interface AppMeta {

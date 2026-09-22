@@ -49,7 +49,9 @@ export function App() {
 
   useEffect(() => {
     if (!extensionApiAvailable) {
-      setSiteState(generateDemoSites());
+      const demoSites = generateDemoSites();
+      const previewMode = new URLSearchParams(window.location.search).get('preview');
+      setSiteState(previewMode === 'single' ? demoSites.slice(0, 1) : demoSites);
       setSettingsState(DEFAULT_SETTINGS);
       setHistoryAllowed(true);
       setReady(true);
@@ -234,10 +236,30 @@ export function App() {
             <p className="eyebrow">Living locally on this device</p>
             <h1>Your Terrarium</h1>
           </div>
-          <div className="filter-tabs" role="group" aria-label="Timeline emphasis">
-            {FILTERS.map((item) => (
-              <button key={item.value} className={filter === item.value ? 'active' : ''} onClick={() => setFilter(item.value)}>{item.label}</button>
-            ))}
+          <div className="toolbar-controls">
+            <div className="view-toggle" role="group" aria-label="Terrarium view">
+              <button
+                className={settings.terrariumView === 'perspective' ? 'active' : ''}
+                aria-pressed={settings.terrariumView === 'perspective'}
+                onClick={() => void handleSettingsChange({ terrariumView: 'perspective' })}
+                title="3D perspective view"
+              >
+                <span aria-hidden="true">◇</span> 3D
+              </button>
+              <button
+                className={settings.terrariumView === 'flat' ? 'active' : ''}
+                aria-pressed={settings.terrariumView === 'flat'}
+                onClick={() => void handleSettingsChange({ terrariumView: 'flat' })}
+                title="2D front view"
+              >
+                <span aria-hidden="true">▤</span> 2D
+              </button>
+            </div>
+            <div className="filter-tabs" role="group" aria-label="Timeline emphasis">
+              {FILTERS.map((item) => (
+                <button key={item.value} className={filter === item.value ? 'active' : ''} onClick={() => setFilter(item.value)}>{item.label}</button>
+              ))}
+            </div>
           </div>
         </div>
 
