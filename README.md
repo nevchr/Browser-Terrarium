@@ -58,7 +58,7 @@ public/manifest.json  Manifest V3 configuration
 Prerequisites: Node.js 20.19 or newer and npm.
 
 ```bash
-npm install
+npm ci
 npm run typecheck
 npm test
 npm run build
